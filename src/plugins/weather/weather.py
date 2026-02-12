@@ -4,6 +4,7 @@ import os
 import requests
 import logging
 from datetime import datetime, timedelta, timezone, date
+from collections import Counter
 from astral import moon
 import pytz
 from io import BytesIO
@@ -111,17 +112,15 @@ class Weather(BasePlugin):
                 aqi_data = self.get_open_meteo_air_quality(lat, long)
                 template_params = self.parse_open_meteo_data(weather_data, aqi_data, tz, units, time_format, lat)
             elif weather_provider == "MetOfficeSiteSpecific":
-                api_key = device_config.load_env_key("OPEN_WEATHER_MAP_SECRET")  # or METOFFICE_WDH_API_KEY
+                api_key = device_config.load_env_key("METOFFICE_WDH_API_KEY")
                 if not api_key:
                     raise RuntimeError("Met Office API key not configured.")
 
                 mo_hourly = self.get_metoffice_sitespecific(api_key, lat, long, "hourly")
                 mo_daily  = self.get_metoffice_sitespecific(api_key, lat, long, "daily")
 
-                static_dir = template_params.get("static_dir")  # this already exists in the normal flow
-                template_params = self.parse_metoffice_data(mo_hourly, mo_daily, tz, units, time_format, lat, static_dir)
+                template_params = self.parse_metoffice_data(mo_hourly, mo_daily, tz, units, time_format, lat)
 
-                # titleSelection='location' can use Met Office location name
                 if settings.get('titleSelection', 'location') == 'location':
                     try:
                         feat = mo_hourly["features"][0]
@@ -827,7 +826,7 @@ class Weather(BasePlugin):
             logger.error("Failed to retrieve Timezone from weather data")
             raise RuntimeError("Timezone not found in weather data.")
 
-    def _mo_icon_from_code(self, code: int, is_day: bool, static_dir: str) -> str:
+    def _mo_icon_from_code(self, code: int, is_day: bool) -> str:
         """
         Map Met Office Significant Weather Code -> an OpenWeather-style icon id.
         This is intentionally coarse but works with your existing icon set.
@@ -850,13 +849,13 @@ class Weather(BasePlugin):
         else:
             icon = "04"
 
-        return f"{static_dir}/icons/{icon}{'d' if is_day else 'n'}.png"
+        return self.get_plugin_dir(f"icons/{icon}{'d' if is_day else 'n'}.png")
 
     def _parse_mo_time(self, t: str) -> datetime:
         # Met Office provides Z times like "2026-02-12T19:00Z"
         return datetime.strptime(t, "%Y-%m-%dT%H:%MZ")
 
-    def parse_metoffice_data(self, mo_hourly, mo_daily, tz, units, time_format, lat, static_dir):
+    def parse_metoffice_data(self, mo_hourly, mo_daily, tz, units, time_format, lat):
         feat = mo_hourly["features"][0]
         props = feat["properties"]
         loc = props.get("location", {}) or {}
@@ -895,7 +894,7 @@ class Weather(BasePlugin):
                 "temperature": round(temp(row.get("screenTemperature", 0)), 1),
                 "precipitation": pop,
                 "rain": rain,
-                "icon": self._mo_icon_from_code(int(row.get("significantWeatherCode", 7)), is_day=True, static_dir=static_dir),
+                "icon": self._mo_icon_from_code(int(row.get("significantWeatherCode", 7)), is_day=True),
             })
 
         # Build "daily" forecast by grouping the hourly data into dates
@@ -926,23 +925,23 @@ class Weather(BasePlugin):
             code = int(mid_row.get("significantWeatherCode", 7)) if mid_row else Counter(codes).most_common(1)[0][0]
 
             forecast.append({
-                "day": d.strftime("%a"),  # e.g. Fri
+                "day": d.strftime("%a"),
                 "high": round(temp(high_c), 0),
                 "low": round(temp(low_c), 0),
                 "icon": self._mo_icon_from_code(code, is_day=True),
-                # Moon fields - if your template expects them and you have toggle on, you can fill later
-                "moon_phase_icon": f"{self.static_dir}/icons/moon/0.png",
+                "moon_phase_icon": self.get_plugin_dir("icons/newmoon.png"),
                 "moon_phase_pct": 0,
             })
+
 
         # Data points shown in the grid (keep it small and reliable)
         wind_dir = int(cur.get("windDirectionFrom10m", 0))
         wind_speed = cur.get("windSpeed10m", 0)
 
         data_points = [
-            {"label": "Wind", "measurement": f"{wind_speed:.1f}", "unit": "m/s" if not is_imperial else "mph", "icon": f"{self.static_dir}/icons/wind.png", "arrow": "→"},
-            {"label": "Humidity", "measurement": f"{cur.get('screenRelativeHumidity', 0):.0f}", "unit": "%", "icon": f"{self.static_dir}/icons/humidity.png"},
-            {"label": "Pressure", "measurement": f"{pressure_hpa(cur.get('mslp', 0)):.0f}", "unit": "hPa", "icon": f"{self.static_dir}/icons/pressure.png"},
+            {"label": "Wind", "measurement": f"{wind_speed:.1f}", "unit": "m/s" if not is_imperial else "mph", "icon": self.get_plugin_dir("icons/wind.png"), "arrow": "→"},
+            {"label": "Humidity", "measurement": f"{cur.get('screenRelativeHumidity', 0):.0f}", "unit": "%", "icon": self.get_plugin_dir("icons/humidity.png")},
+            {"label": "Pressure", "measurement": f"{pressure_hpa(cur.get('mslp', 0)):.0f}", "unit": "hPa", "icon": self.get_plugin_dir("icons/pressure.png")},
             {"label": "UV", "measurement": f"{cur.get('uvIndex', 0)}", "unit": "", "icon": f"{self.static_dir}/icons/uv.png"},
         ]
 
