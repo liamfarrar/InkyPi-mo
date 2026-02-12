@@ -118,7 +118,8 @@ class Weather(BasePlugin):
                 mo_hourly = self.get_metoffice_sitespecific(api_key, lat, long, "hourly")
                 mo_daily  = self.get_metoffice_sitespecific(api_key, lat, long, "daily")
 
-                template_params = self.parse_metoffice_data(mo_hourly, mo_daily, tz, units, time_format, lat)
+                static_dir = template_params.get("static_dir")  # this already exists in the normal flow
+                template_params = self.parse_metoffice_data(mo_hourly, mo_daily, tz, units, time_format, lat, static_dir)
 
                 # titleSelection='location' can use Met Office location name
                 if settings.get('titleSelection', 'location') == 'location':
@@ -826,7 +827,7 @@ class Weather(BasePlugin):
             logger.error("Failed to retrieve Timezone from weather data")
             raise RuntimeError("Timezone not found in weather data.")
 
-    def _mo_icon_from_code(self, code: int, is_day: bool) -> str:
+    def _mo_icon_from_code(self, code: int, is_day: bool, static_dir: str) -> str:
         """
         Map Met Office Significant Weather Code -> an OpenWeather-style icon id.
         This is intentionally coarse but works with your existing icon set.
@@ -849,13 +850,13 @@ class Weather(BasePlugin):
         else:
             icon = "04"
 
-        return f"{self.static_dir}/icons/{icon}{'d' if is_day else 'n'}.png"
+        return f"{static_dir}/icons/{icon}{'d' if is_day else 'n'}.png"
 
     def _parse_mo_time(self, t: str) -> datetime:
         # Met Office provides Z times like "2026-02-12T19:00Z"
         return datetime.strptime(t, "%Y-%m-%dT%H:%MZ")
 
-    def parse_metoffice_data(self, mo_hourly: dict, mo_daily: dict, tz, units: str, time_format: str, lat: float):
+    def parse_metoffice_data(self, mo_hourly, mo_daily, tz, units, time_format, lat, static_dir):
         feat = mo_hourly["features"][0]
         props = feat["properties"]
         loc = props.get("location", {}) or {}
@@ -894,7 +895,7 @@ class Weather(BasePlugin):
                 "temperature": round(temp(row.get("screenTemperature", 0)), 1),
                 "precipitation": pop,
                 "rain": rain,
-                "icon": self._mo_icon_from_code(int(row.get("significantWeatherCode", 7)), is_day=True),
+                "icon": self._mo_icon_from_code(int(row.get("significantWeatherCode", 7)), is_day=True, static_dir=static_dir),
             })
 
         # Build "daily" forecast by grouping the hourly data into dates
@@ -950,7 +951,7 @@ class Weather(BasePlugin):
             "current_date": cur_dt.strftime("%a %d %b"),
             "current_temperature": round(temp(cur.get("screenTemperature", 0)), 1),
             "feels_like": round(temp(cur.get("feelsLikeTemperature", 0)), 1),
-            "current_day_icon": self._mo_icon_from_code(int(cur.get("significantWeatherCode", 7)), is_day=True),
+            "current_day_icon": self._mo_icon_from_code(int(cur.get("significantWeatherCode", 7)), True, static_dir),
             "forecast": forecast,
             "hourly_forecast": hourly,
             "data_points": data_points,
