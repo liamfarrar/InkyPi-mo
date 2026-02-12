@@ -17,9 +17,11 @@
 <div class="form-group">
     <label for="weatherProvider" class="form-label">Weather Provider:</label>
     <select id="weatherProvider" name="weatherProvider" class="form-input" onchange="updateTitleOptions(this.value)">
-        <option value="OpenMeteo">Open-Meteo</option>
-        <option value="OpenWeatherMap">OpenWeatherMap</option>
+    <option value="OpenMeteo">Open-Meteo</option>
+    <option value="OpenWeatherMap">OpenWeatherMap</option>
+    <option value="MetOfficeSiteSpecific">Met Office (Site Specific)</option>
     </select>
+
 
     <label for="units" class="form-label">Units:</label>
     <select id="units" name="units" class="form-input">

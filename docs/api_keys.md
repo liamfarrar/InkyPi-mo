@@ -17,19 +17,6 @@ Certain plugins, like the AI Image plugin, require API credentials to function. 
     ```
 4. Save the file and exit the editor
 
-## Open AI Key
-
-Required for the AI Image and AI Text Plugins
-
-- Login or create an account on the [Open AI developer platform](https://platform.openai.com/docs/overview)
-- Crate a secret key from the API Keys tab in the Settings page
-    - It is recommended to set up Auto recharge (found in the "Billing" tab)
-    - Optionally set a Budge Limit in the Limits tab
-- Store your key in the .env file with the key `OPEN_AI_SECRET`
-    ```
-    OPEN_AI_SECRET=your-key
-    ```
-
 ## Open Weather Map Key
 
 Required for the Weather Plugin
@@ -45,32 +32,6 @@ Required for the Weather Plugin
     OPEN_WEATHER_MAP_SECRET=your-key
     ```
 
-## NASA Astronomy Picture Of the Day Key
-
-Required for the APOD Plugin
-
-- Request an API key on [NASA APIs](https://api.nasa.gov/)
-   - Fill your First name, Last name, and e-mail address
-- The APOD plugin uses the [NASA APIs](https://api.nasa.gov/)
-   - Free for up to 1,000 requests per hour
-- Store your api key in the .env file with the key `NASA_SECRET`
-    ```
-    NASA_SECRET=your-key
-    ```
-
-## Unsplash Key
-
-Required for the Unsplash Plugin
- 
-- Register an account from https://unsplash.com/developers 
-- Go to https://unsplash.com/oauth/applications 
-- Create an app and open it
-- Your KEY is listed as `Access Key`
-- Store your api key in the .env file with the key `UNSPLASH_ACCESS_KEY`
-    ```
-    UNSPLASH_ACCESS_KEY=your-key
-    ```
-
 ## GitHub Key
 
 Required for the GitHub Plugin
@@ -81,16 +42,4 @@ Required for the GitHub Plugin
 - Store your api key in the .env file with the key `GITHUB_SECRET`
     ```
     GITHUB_SECRET=your-key
-    ```
-
-## Immich Key
-
-Required for the Image Album plugin for the Immich Provider
-
-- Login to your Immich instance https://my.immich.app/
-- Under Account Settings > API Keys, create a new API Key
-- Assign the `asset.read`, `asset.download`, and `album.read` permissions and generate the key
-- Store your api key in the .env file with the key `IMMICH_KEY`
-    ```
-    IMMICH_KEY=your-key
     ```

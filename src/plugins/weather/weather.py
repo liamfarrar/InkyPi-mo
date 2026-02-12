@@ -51,6 +51,7 @@ UNITS = {
 WEATHER_URL = "https://api.openweathermap.org/data/3.0/onecall?lat={lat}&lon={long}&units={units}&exclude=minutely&appid={api_key}"
 AIR_QUALITY_URL = "http://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={long}&appid={api_key}"
 GEOCODING_URL = "http://api.openweathermap.org/geo/1.0/reverse?lat={lat}&lon={long}&limit=1&appid={api_key}"
+METOFFICE_POINT_URL = "https://data.hub.api.metoffice.gov.uk/sitespecific/v0/point/{timesteps}"
 
 OPEN_METEO_FORECAST_URL = "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={long}&hourly=weather_code,temperature_2m,precipitation,precipitation_probability,relative_humidity_2m,surface_pressure,visibility&daily=weathercode,temperature_2m_max,temperature_2m_min,sunrise,sunset&current=temperature,windspeed,winddirection,is_day,precipitation,weather_code,apparent_temperature&timezone=auto&models=best_match&forecast_days={forecast_days}"
 OPEN_METEO_AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={long}&hourly=european_aqi,uv_index,uv_index_clear_sky&timezone=auto"
@@ -65,8 +66,8 @@ class Weather(BasePlugin):
         template_params = super().generate_settings_template()
         template_params['api_key'] = {
             "required": True,
-            "service": "OpenWeatherMap",
-            "expected_key": "OPEN_WEATHER_MAP_SECRET"
+            "service": "MetOffice Weather DataHub",
+            "expected_key": "METOFFICE_WDH_API_KEY"
         }
         template_params['style_settings'] = True
         return template_params
@@ -109,6 +110,23 @@ class Weather(BasePlugin):
                 weather_data = self.get_open_meteo_data(lat, long, units, forecast_days + 1)
                 aqi_data = self.get_open_meteo_air_quality(lat, long)
                 template_params = self.parse_open_meteo_data(weather_data, aqi_data, tz, units, time_format, lat)
+            elif weather_provider == "MetOfficeSiteSpecific":
+                api_key = device_config.load_env_key("OPEN_WEATHER_MAP_SECRET")  # or METOFFICE_WDH_API_KEY
+                if not api_key:
+                    raise RuntimeError("Met Office API key not configured.")
+
+                mo_hourly = self.get_metoffice_sitespecific(api_key, lat, long, "hourly")
+                mo_daily  = self.get_metoffice_sitespecific(api_key, lat, long, "daily")
+
+                template_params = self.parse_metoffice_data(mo_hourly, mo_daily, tz, units, time_format, lat)
+
+                # titleSelection='location' can use Met Office location name
+                if settings.get('titleSelection', 'location') == 'location':
+                    try:
+                        feat = mo_hourly["features"][0]
+                        title = feat["properties"].get("location", {}).get("name", title)
+                    except Exception:
+                        pass
             else:
                 raise RuntimeError(f"Unknown weather provider: {weather_provider}")
 
@@ -727,6 +745,22 @@ class Weather(BasePlugin):
             raise RuntimeError("Failed to retrieve weather data.")
 
         return response.json()
+    
+    def get_metoffice_sitespecific(self, api_key: str, lat: float, long: float, timesteps: str = "hourly"):
+        url = METOFFICE_POINT_URL.format(timesteps=timesteps)
+        headers = {"accept": "application/json", "apikey": api_key}
+        params = {
+            "latitude": lat,
+            "longitude": long,
+            "excludeParameterMetadata": "TRUE",   # huge size win
+            "includeLocationName": "TRUE",
+        }
+        r = requests.get(url, headers=headers, params=params, timeout=30)
+        if not 200 <= r.status_code < 300:
+            logger.error(f"Failed Met Office request: {r.status_code} {r.text[:500]}")
+            raise RuntimeError("Failed to retrieve Met Office data.")
+        return r.json()
+
 
     def get_air_quality(self, api_key, lat, long):
         url = AIR_QUALITY_URL.format(lat=lat, long=long, api_key=api_key)
