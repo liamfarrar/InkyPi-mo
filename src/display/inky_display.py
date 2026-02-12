@@ -1,5 +1,5 @@
 import logging
-from inky.inky_uc8159 import Inky
+from inky.inky_e673 import Inky
 from display.abstract_display import AbstractDisplay
 
 
