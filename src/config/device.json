@@ -1,6 +1,6 @@
 {
     "name": "InkyPi Development",
-    "display_type": "inky_impression",
+    "display_type": "inky",
     "resolution": [
         800,
         480
