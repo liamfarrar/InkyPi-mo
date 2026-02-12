@@ -27,7 +27,7 @@ class InkyDisplay(AbstractDisplay):
             ValueError: If the resolution cannot be retrieved or stored.
         """
         
-        self.inky_display = auto()
+        self.inky_display = auto(800,480)
         self.inky_display.set_border(self.inky_display.BLACK)
 
         # store display resolution in device config
