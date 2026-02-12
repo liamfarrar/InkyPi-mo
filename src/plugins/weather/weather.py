@@ -825,3 +825,134 @@ class Weather(BasePlugin):
         else:
             logger.error("Failed to retrieve Timezone from weather data")
             raise RuntimeError("Timezone not found in weather data.")
+
+    def _mo_icon_from_code(self, code: int, is_day: bool) -> str:
+        """
+        Map Met Office Significant Weather Code -> an OpenWeather-style icon id.
+        This is intentionally coarse but works with your existing icon set.
+        """
+        # Very rough buckets (tweak later)
+        if code in (0, 1):          # clear
+            icon = "01"
+        elif code in (2, 3, 4):     # partly cloudy
+            icon = "02"
+        elif code in (5, 6, 7):     # cloudy
+            icon = "04"
+        elif code in (8, 9):        # light rain/showers
+            icon = "10"
+        elif code in (10, 11, 12):  # heavier rain
+            icon = "09"
+        elif code in (13, 14):      # snow/sleet-ish
+            icon = "13"
+        elif code in (15, 16):      # thunder-ish (if present)
+            icon = "11"
+        else:
+            icon = "04"
+
+        return f"{self.static_dir}/icons/{icon}{'d' if is_day else 'n'}.png"
+
+    def _parse_mo_time(self, t: str) -> datetime:
+        # Met Office provides Z times like "2026-02-12T19:00Z"
+        return datetime.strptime(t, "%Y-%m-%dT%H:%MZ")
+
+    def parse_metoffice_data(self, mo_hourly: dict, mo_daily: dict, tz, units: str, time_format: str, lat: float):
+        feat = mo_hourly["features"][0]
+        props = feat["properties"]
+        loc = props.get("location", {}) or {}
+        title = loc.get("name") or "Weather"
+
+        ts = props.get("timeSeries", [])
+        if not ts:
+            raise RuntimeError("Met Office response contained no timeSeries data")
+
+        # Current = first timestep (Met Office returns from modelRunDate onwards)
+        cur = ts[0]
+        cur_dt = self._parse_mo_time(cur["time"])
+
+        # Units helpers
+        is_imperial = (units == "imperial")
+        def temp(x):  # Met Office is °C already
+            return (x * 9/5 + 32) if is_imperial else x
+
+        def mm_to_in(x):
+            return x / 25.4
+
+        def pressure_hpa(pa):
+            return pa / 100.0
+
+        # Hourly forecast for chart (next 24 points)
+        hourly = []
+        for row in ts[:24]:
+            dt = self._parse_mo_time(row["time"])
+            label = dt.strftime("%-I%p") if time_format == "12h" else dt.strftime("%H:%M")
+            pop = (row.get("probOfPrecipitation", 0) or 0) / 100.0
+            rain_mm = row.get("totalPrecipAmount", 0) or 0
+            rain = mm_to_in(rain_mm) if is_imperial else rain_mm
+
+            hourly.append({
+                "time": label,
+                "temperature": round(temp(row.get("screenTemperature", 0)), 1),
+                "precipitation": pop,
+                "rain": rain,
+                "icon": self._mo_icon_from_code(int(row.get("significantWeatherCode", 7)), is_day=True),
+            })
+
+        # Build "daily" forecast by grouping the hourly data into dates
+        by_date = {}
+        for row in ts:
+            dt = self._parse_mo_time(row["time"]).date()
+            by_date.setdefault(dt, []).append(row)
+
+        days_sorted = sorted(by_date.keys())
+        forecast = []
+
+        for i, d in enumerate(days_sorted[:8]):  # today + next 7 (adjust to your UI)
+            rows = by_date[d]
+            temps = [r.get("screenTemperature") for r in rows if r.get("screenTemperature") is not None]
+            if not temps:
+                continue
+
+            high_c = max(temps)
+            low_c = min(temps)
+
+            # Pick a representative weather code near midday if possible, else most common
+            codes = [int(r.get("significantWeatherCode", 7)) for r in rows]
+            mid_row = None
+            for r in rows:
+                if r["time"].endswith("12:00Z"):
+                    mid_row = r
+                    break
+            code = int(mid_row.get("significantWeatherCode", 7)) if mid_row else Counter(codes).most_common(1)[0][0]
+
+            forecast.append({
+                "day": d.strftime("%a"),  # e.g. Fri
+                "high": round(temp(high_c), 0),
+                "low": round(temp(low_c), 0),
+                "icon": self._mo_icon_from_code(code, is_day=True),
+                # Moon fields - if your template expects them and you have toggle on, you can fill later
+                "moon_phase_icon": f"{self.static_dir}/icons/moon/0.png",
+                "moon_phase_pct": 0,
+            })
+
+        # Data points shown in the grid (keep it small and reliable)
+        wind_dir = int(cur.get("windDirectionFrom10m", 0))
+        wind_speed = cur.get("windSpeed10m", 0)
+
+        data_points = [
+            {"label": "Wind", "measurement": f"{wind_speed:.1f}", "unit": "m/s" if not is_imperial else "mph", "icon": f"{self.static_dir}/icons/wind.png", "arrow": "→"},
+            {"label": "Humidity", "measurement": f"{cur.get('screenRelativeHumidity', 0):.0f}", "unit": "%", "icon": f"{self.static_dir}/icons/humidity.png"},
+            {"label": "Pressure", "measurement": f"{pressure_hpa(cur.get('mslp', 0)):.0f}", "unit": "hPa", "icon": f"{self.static_dir}/icons/pressure.png"},
+            {"label": "UV", "measurement": f"{cur.get('uvIndex', 0)}", "unit": "", "icon": f"{self.static_dir}/icons/uv.png"},
+        ]
+
+        template_params = {
+            "title": title,
+            "current_date": cur_dt.strftime("%a %d %b"),
+            "current_temperature": round(temp(cur.get("screenTemperature", 0)), 1),
+            "feels_like": round(temp(cur.get("feelsLikeTemperature", 0)), 1),
+            "current_day_icon": self._mo_icon_from_code(int(cur.get("significantWeatherCode", 7)), is_day=True),
+            "forecast": forecast,
+            "hourly_forecast": hourly,
+            "data_points": data_points,
+        }
+        return template_params
