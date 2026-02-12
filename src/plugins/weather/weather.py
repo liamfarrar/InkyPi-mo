@@ -942,7 +942,7 @@ class Weather(BasePlugin):
             {"label": "Wind", "measurement": f"{wind_speed:.1f}", "unit": "m/s" if not is_imperial else "mph", "icon": self.get_plugin_dir("icons/wind.png"), "arrow": "→"},
             {"label": "Humidity", "measurement": f"{cur.get('screenRelativeHumidity', 0):.0f}", "unit": "%", "icon": self.get_plugin_dir("icons/humidity.png")},
             {"label": "Pressure", "measurement": f"{pressure_hpa(cur.get('mslp', 0)):.0f}", "unit": "hPa", "icon": self.get_plugin_dir("icons/pressure.png")},
-            {"label": "UV", "measurement": f"{cur.get('uvIndex', 0)}", "unit": "", "icon": f"{self.static_dir}/icons/uv.png"},
+            {"label": "UV", "measurement": f"{cur.get('uvIndex', 0)}", "unit": "", "icon": self.get_plugin_dir("icons/uv.png")},
         ]
 
         template_params = {
@@ -950,7 +950,9 @@ class Weather(BasePlugin):
             "current_date": cur_dt.strftime("%a %d %b"),
             "current_temperature": round(temp(cur.get("screenTemperature", 0)), 1),
             "feels_like": round(temp(cur.get("feelsLikeTemperature", 0)), 1),
-            "current_day_icon": self._mo_icon_from_code(int(cur.get("significantWeatherCode", 7)), True, static_dir),
+            "current_day_icon": self._mo_icon_from_code(
+                int(cur.get("significantWeatherCode", 7)), True
+            ),
             "forecast": forecast,
             "hourly_forecast": hourly,
             "data_points": data_points,
