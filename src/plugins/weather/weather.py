@@ -942,7 +942,7 @@ class Weather(BasePlugin):
             {"label": "Wind", "measurement": f"{wind_speed:.1f}", "unit": "m/s" if not is_imperial else "mph", "icon": self.get_plugin_dir("icons/wind.png"), "arrow": "→"},
             {"label": "Humidity", "measurement": f"{cur.get('screenRelativeHumidity', 0):.0f}", "unit": "%", "icon": self.get_plugin_dir("icons/humidity.png")},
             {"label": "Pressure", "measurement": f"{pressure_hpa(cur.get('mslp', 0)):.0f}", "unit": "hPa", "icon": self.get_plugin_dir("icons/pressure.png")},
-            {"label": "UV", "measurement": f"{cur.get('uvIndex', 0)}", "unit": "", "icon": self.get_plugin_dir("icons/uv.png")},
+            {"label": "UV", "measurement": f"{cur.get('uvIndex', 0)}", "unit": "", "icon": self.get_plugin_dir("icons/uvi.png")},
         ]
 
         template_params = {
